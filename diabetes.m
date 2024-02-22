@@ -99,6 +99,7 @@ for i = 1:num_rows
     switch change
         case 'No'
             data_matrix(i, 40) = 0;
+
         case 'Ch'
             data_matrix(i, 40) = 1;
     end
