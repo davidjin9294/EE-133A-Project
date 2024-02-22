@@ -1,5 +1,7 @@
 # EE-133A-Project
-
+## Team Members:
+* David Jin
+* Zoe Chen
 ## File Descriptions
 * diabetes_original_dataset: the original dataset from UCI Machine Learning Repository
 * diabetes.m: matlab source file
