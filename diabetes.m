@@ -11,6 +11,7 @@ third_column = data_matrix(:,3);
 patterns = {'\[0-10\)', '\[10-20\)','\[20-30\)','\[30-40\)','\[40-50\)','\[50-60\)','\[60-70\)','\[70-80\)','\[80-90\)','\[90-100\)'};
 integer_values = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
+
 % Loop through patterns and replace them with corresponding integer values
 for i = 1:numel(patterns)
     pattern = patterns{i};
@@ -123,12 +124,73 @@ for i = 1:num_rows
     end
 end
 
+% Convert data_matrix into numerical values
+data = str2double(data_matrix);
+% Normalize data
+% data: the value matrix 
+
+% Separate into feature and label matrices
+feature_matrix = data(:, 1:end-1);
+label_matrix = data(:, end);
+
+% Calculate mean and standard deviation for each column
+means = mean(feature_matrix);
+std_devs = std(feature_matrix);
+
+% Remove columns where mean and standard deviation are both 0
+remove_columns = find(std_devs == 0);
+feature_matrix(:, remove_columns) = [];
+means(:, remove_columns) = [];
+std_devs(:, remove_columns) = [];
+
+%% Standardize each column
+standardized_feature_matrix = (feature_matrix - means) ./ std_devs;
+corCoef = corrcoef(standardized_feature_matrix);
+
+%% Run k-means. Calculate the error
+num_of_centers = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+silhouette_scores = zeros(1, length(num_of_centers));
+error_array = zeros(1, length(num_of_centers));
+for index = 1:length(num_of_centers)
+    distance = zeros(1, num_of_centers(index));
+    % Run kmeans on training_sets
+    [idk, C, sumd] = kmeans(standardized_feature_matrix, num_of_centers(index));
+    
+    % Calculate error
+    error_array(index) = mean(sumd);
+    % Calculate Silhouette score
+    silhouette_scores(index) = mean(silhouette(standardized_feature_matrix, idk));
+    
+    
+    disp(["Completed run with ", num_of_centers(index), " centers"]);
+end
+%% Plot the error and silhouette scores
+plot(num_of_centers, silhouette_scores, 'b');
+%plot(num_of_centers, error_array, 'r')
+
+%% Run SVD
+[U, S, V] = svd(standardized_feature_matrix, "econ");
+svd_features = standardized_feature_matrix*V;
 
 
-
-
-
-
+%% Find highly correlated features
+threshold = 0.5; % You can adjust this threshold as needed
+[n, m] = size(corCoef);
+highly_correlated_features= [];
+for i = 1:n
+    for j = i+1:m
+        if abs(corCoef(i,j)) > threshold
+            highly_correlated_features = [highly_correlated_features; [i, j, corCoef(i,j)]];
+        end
+    end
+end
+% Display highly correlated features
+if isempty(highly_correlated_features)
+    disp('No highly correlated features found.');
+else
+    disp('Highly correlated features (i, j, correlation coefficient):');
+    disp(highly_correlated_features);
+end
 
 
 
