@@ -142,6 +142,7 @@ remove_columns = find(std_devs == 0);
 feature_matrix(:, remove_columns) = [];
 means(:, remove_columns) = [];
 std_devs(:, remove_columns) = [];
+feature_names(:, remove_columns) = [];
 
 %% Standardize each column
 standardized_feature_matrix = (feature_matrix - means) ./ std_devs;
@@ -164,10 +165,6 @@ for index = 1:length(num_of_centers)
     
     disp(["Completed run with ", num_of_centers(index), " centers"]);
 end
-%% Plot the error and silhouette scores
-plot(num_of_centers, silhouette_scores, 'b');
-%plot(num_of_centers, error_array, 'r')
-
 %% Run SVD
 [U, S, V] = svd(standardized_feature_matrix, "econ");
 svd_features = standardized_feature_matrix*V;
@@ -192,7 +189,89 @@ else
     disp(highly_correlated_features);
 end
 
+%% Split test and train
+partition = cvpartition(label_matrix, 'HoldOut', 0.1);
+
+training_index = training(partition);
+testing_index = test(partition);
+
+X_regularized_train = standardized_feature_matrix(training_index, :);
+y_regularized_train = label_matrix(training_index, :);
+
+X_regularized_test = standardized_feature_matrix(testing_index, :);
+y_regularized_test = label_matrix(testing_index, :);
 
 
+%% Try different regularization methods and check for RMS errors
+B_ridge = ridge(y_regularized_train, X_regularized_train, 0.1);
+
+B_lasso = lasso(X_regularized_train, y_regularized_train);
+
+%% Try it on the test set
+fit_ridge = X_regularized_test*B_ridge;
+for i = 1:numel(fit_ridge)
+    value = fit_ridge(i);
+    if(value<0.02)
+        fit_ridge(i) = 0;
+    
+    elseif(value<0.18)
+        fit_ridge(i) = 1;
+    else
+        fit_ridge(i) = 2;
+    end
+end
+
+rms_ridge = sqrt(mean(fit_ridge - y_regularized_test).^2);
 
 
+fit_lasso = X_regularized_test*B_lasso;
+[m, n] = size(fit_lasso); 
+for i = 1:m
+    for j = 1:n
+        value = fit_lasso(i, j);
+        if(value<0.02)
+            fit_lasso(i, j) = 0;
+        elseif(value<0.18)
+            fit_lasso(i, j) = 1;
+        else
+            fit_lasso(i, j) = 2;
+        end
+    end
+end
+
+rms_lasso = zeros(1, n);
+for i = 1:n
+    % get each column of lasso
+    column = fit_lasso(:,i);
+    rms_lasso(i) = sqrt(mean(column - y_regularized_test).^2);
+end
+[value, index] = min(rms_lasso);
+disp(value)
+C_ridge = confusionmat(y_regularized_test, fit_ridge);
+C_lasso = confusionmat(y_regularized_test, fit_lasso(:,index));
+
+
+%% Run support vector machine
+
+cv = cvpartition(size(standardized_feature_matrix, 1), 'KFold', 10);
+rms_svm = zeros(1, 10);
+% Initialize cell arrays to store parameters and RMS errors for each fold
+% Loop through each fold
+for fold = 1:cv.NumTestSets
+    % Split the data into training and testing sets
+    trainIdx = cv.training(fold);
+    testIdx = cv.test(fold);
+    X_train = standardized_feature_matrix(trainIdx, :);
+    y_train = label_matrix(trainIdx);
+    X_test = standardized_feature_matrix(testIdx, :);
+    y_test = label_matrix(testIdx);
+    disp("finished")
+    % Fit the least squares model
+    svmModel = fitcecoc(X_regularized_train, y_regularized_train);
+    svm_parameters{fold} = svmModel;
+    predictions = predict(svmModel, X_regularized_test);
+    rms_svm(fold) = sqrt(mean(predictions-y_regularized_test).^2);
+end
+%%
+predictions=predict(svm_parameters{1,4}, X_regularized_test);
+C_svm = confusionmat(predictions, y_regularized_test)
